@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os, sys
-import urllib
+import urllib.request, urllib.parse, urllib.error
 from uuid import uuid4
 
 from mongrel2 import handler
@@ -10,9 +10,9 @@ import json
 
 from wsgiref.handlers import SimpleHandler
 try:
-    import cStringIO as StringIO
+    import io as StringIO
 except:
-    import StringIO
+    import io
 
 DEBUG = False
 
@@ -39,7 +39,7 @@ def simple_app_utf8(environ, start_response):
     status = '200 OK'
     response_headers = [('Content-type','text/plain; charset=utf-8')]
     start_response(status, response_headers)
-    return encode_response([u'Héllo wörld!\n' for i in range(100)])
+    return encode_response(['Héllo wörld!\n' for i in range(100)])
 
 def wsgi_server(application):
     '''WSGI handler based on the Python wsgiref SimpleHandler.
@@ -58,14 +58,14 @@ def wsgi_server(application):
     # and responses. Unless I have missed something.
     
     while True:
-        if DEBUG: print "WAITING FOR REQUEST"
+        if DEBUG: print("WAITING FOR REQUEST")
         
         # receive a request
         req = conn.recv()
-        if DEBUG: print "REQUEST BODY: %r\n" % req.body
+        if DEBUG: print("REQUEST BODY: %r\n" % req.body)
         
         if req.is_disconnect():
-            if DEBUG: print "DISCONNECT"
+            if DEBUG: print("DISCONNECT")
             continue #effectively ignore the disconnect from the client
         
         # Set a couple of environment attributes a.k.a. header attributes 
@@ -84,22 +84,22 @@ def wsgi_server(application):
 		# apparently Django isn't expecting an already quoted string. So, I just
 		# unquote the path_info here again so Django doesn't throw a "page not found" on 
 		# urls with spaces and other characters in it.
-        environ['PATH_INFO'] = urllib.unquote(environ['PATH'])
+        environ['PATH_INFO'] = urllib.parse.unquote(environ['PATH'])
         if '?' in environ['URI']:
             environ['QUERY_STRING'] = environ['URI'].split('?')[1]
         else:
             environ['QUERY_STRING'] = ''
-        if environ.has_key('Content-Length'):
+        if 'Content-Length' in environ:
             environ['CONTENT_LENGTH'] = environ['Content-Length'] # necessary for POST to work with Django
         environ['wsgi.input'] = req.body
         
-        if DEBUG: print "ENVIRON: %r\n" % environ
+        if DEBUG: print("ENVIRON: %r\n" % environ)
         
         # SimpleHandler needs file-like stream objects for
         # requests, errors and reponses
-        reqIO = StringIO.StringIO(req.body)
-        errIO = StringIO.StringIO()
-        respIO = StringIO.StringIO()
+        reqIO = io.StringIO(req.body)
+        errIO = io.StringIO()
+        respIO = io.StringIO()
         
         # execute the application
         handler = SimpleHandler(reqIO, respIO, errIO, environ, multithread = False, multiprocess = False)
@@ -126,9 +126,9 @@ def wsgi_server(application):
         errors = errIO.getvalue()
         
         # return the response
-        if DEBUG: print "RESPONSE: %r\n" % response
+        if DEBUG: print("RESPONSE: %r\n" % response)
         if errors:
-            if DEBUG: print "ERRORS: %r" % errors
+            if DEBUG: print("ERRORS: %r" % errors)
             data = "%s\r\n\r\n%s" % (data, errors)            
         conn.reply_http(req, data, code = code, status = status, headers = headers)
 
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     simple_utf8_application = simple_app_utf8
     
     # WSGI Test page
-    import test_wsgi_app
+    from . import test_wsgi_app
     wsgi_test_application = test_wsgi_app.application
     
     # Django demo app
